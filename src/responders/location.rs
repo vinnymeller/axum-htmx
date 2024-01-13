@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use axum_core::response::{IntoResponseParts, ResponseParts};
+use axum_core::response::{IntoResponse, IntoResponseParts, ResponseParts};
 use http::{HeaderValue, Uri};
 
 use crate::{headers, HxError};
@@ -51,6 +51,16 @@ impl HxLocation {
             options: LocationOptions::default(),
             uri: uri.as_ref().parse::<Uri>()?,
         })
+    }
+
+    /// Extracts the header value from the inner Uri.
+    fn header_value(&self) -> Result<HeaderValue, HxError> {
+        #[cfg(feature = "serde")]
+        let header = self.into_header_with_options()?;
+        #[cfg(not(feature = "serde"))]
+        let header = self.uri.to_string();
+
+        Ok(HeaderValue::from_maybe_shared(header)?)
     }
 
     /// Parses `uri` and sets it as location with additional options.
@@ -124,17 +134,24 @@ impl IntoResponseParts for HxLocation {
     type Error = HxError;
 
     fn into_response_parts(self, mut res: ResponseParts) -> Result<ResponseParts, Self::Error> {
-        #[cfg(feature = "serde")]
-        let header = self.into_header_with_options()?;
-        #[cfg(not(feature = "serde"))]
-        let header = self.uri.to_string();
+        let header = self.header_value()?;
 
-        res.headers_mut().insert(
-            headers::HX_LOCATION,
-            HeaderValue::from_maybe_shared(header)?,
-        );
+        res.headers_mut().insert(headers::HX_LOCATION, header);
 
         Ok(res)
+    }
+}
+
+impl IntoResponse for HxLocation {
+    fn into_response(self) -> axum_core::response::Response {
+        let mut res = ().into_response();
+        match self.header_value() {
+            Ok(header) => {
+                res.headers_mut().insert(headers::HX_LOCATION, header);
+                res.into_response()
+            }
+            Err(err) => err.into_response(),
+        }
     }
 }
 

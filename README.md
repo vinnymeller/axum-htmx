@@ -76,6 +76,11 @@ any of your responses.
 | `HX-Trigger-After-Settle` | `HxResponseTrigger` | `axum_htmx::serde::HxEvent`         |
 | `HX-Trigger-After-Swap`   | `HxResponseTrigger` | `axum_htmx::serde::HxEvent`         |
 
+For convenience, some responders also implement `IntoResponse` so that they can be returned from handlers directly:
+
+- `HxLocation`
+- `HxRedirect`
+
 ## Request Guards
 
 __Requires features `guards`.__

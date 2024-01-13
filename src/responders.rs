@@ -2,7 +2,7 @@
 
 use std::{convert::Infallible, str::FromStr};
 
-use axum_core::response::{IntoResponseParts, ResponseParts};
+use axum_core::response::{IntoResponse, IntoResponseParts, ResponseParts};
 use http::{HeaderValue, Uri};
 
 use crate::{headers, HxError};
@@ -68,16 +68,34 @@ impl<'a> TryFrom<&'a str> for HxPushUrl {
 #[derive(Debug, Clone)]
 pub struct HxRedirect(pub Uri);
 
+impl HxRedirect {
+    /// Extracts the header value from the inner Uri.
+    fn header_value(&self) -> Result<HeaderValue, HxError> {
+        Ok(HeaderValue::from_maybe_shared(self.0.to_string())?)
+    }
+}
+
 impl IntoResponseParts for HxRedirect {
     type Error = HxError;
 
     fn into_response_parts(self, mut res: ResponseParts) -> Result<ResponseParts, Self::Error> {
-        res.headers_mut().insert(
-            headers::HX_REDIRECT,
-            HeaderValue::from_maybe_shared(self.0.to_string())?,
-        );
+        res.headers_mut()
+            .insert(headers::HX_REDIRECT, self.header_value()?);
 
         Ok(res)
+    }
+}
+
+impl IntoResponse for HxRedirect {
+    fn into_response(self) -> axum_core::response::Response {
+        let mut res = ().into_response();
+        match self.header_value() {
+            Ok(header) => {
+                res.headers_mut().insert(headers::HX_REDIRECT, header);
+                res.into_response()
+            }
+            Err(err) => err.into_response(),
+        }
     }
 }
 
